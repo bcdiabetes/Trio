@@ -160,6 +160,7 @@ platform :ios do
       api_key: api_key,
       skip_submission: false,
       ipa: "Trio.ipa",
+      distribute_external: true,
       groups: [
         "External"
       ],
