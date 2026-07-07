@@ -809,6 +809,13 @@ extension SettingsExport {
                     name: String(localized: "Time in Range Type"),
                     value: trioSettings.timeInRangeType.rawValue
                 )
+                addSetting(
+                    category: featuresCategory,
+                    subcategory: userInterfaceSubcategory,
+                    name: String(localized: "Require Adjustments Confirmation"),
+                    value: trioSettings
+                        .requireAdjustmentsConfirmation ? String(localized: "Enabled") : String(localized: "Disabled")
+                )
 
                 // Appearance setting from UserDefaults
                 let colorSchemePreference = UserDefaults.standard.string(forKey: "colorSchemePreference") ?? "systemDefault"
@@ -843,63 +850,8 @@ extension SettingsExport {
                 addSetting(
                     category: notificationsCategory,
                     subcategory: trioNotificationsSubcategory,
-                    name: String(localized: "Always Notify Pump"),
-                    value: trioSettings.notificationsPump ? String(localized: "Enabled") : String(localized: "Disabled")
-                )
-                addSetting(
-                    category: notificationsCategory,
-                    subcategory: trioNotificationsSubcategory,
-                    name: String(localized: "Always Notify CGM"),
-                    value: trioSettings.notificationsCgm ? String(localized: "Enabled") : String(localized: "Disabled")
-                )
-                addSetting(
-                    category: notificationsCategory,
-                    subcategory: trioNotificationsSubcategory,
-                    name: String(localized: "Always Notify Carb"),
-                    value: trioSettings.notificationsCarb ? String(localized: "Enabled") : String(localized: "Disabled")
-                )
-                addSetting(
-                    category: notificationsCategory,
-                    subcategory: trioNotificationsSubcategory,
-                    name: String(localized: "Always Notify Algorithm"),
-                    value: trioSettings.notificationsAlgorithm ? String(localized: "Enabled") : String(localized: "Disabled")
-                )
-                addSetting(
-                    category: notificationsCategory,
-                    subcategory: trioNotificationsSubcategory,
                     name: String(localized: "Show Glucose App Badge"),
                     value: trioSettings.glucoseBadge ? String(localized: "Enabled") : String(localized: "Disabled")
-                )
-                addSetting(
-                    category: notificationsCategory,
-                    subcategory: trioNotificationsSubcategory,
-                    name: String(localized: "Glucose Notifications"),
-                    value: trioSettings.glucoseNotificationsOption.rawValue
-                )
-                addSetting(
-                    category: notificationsCategory,
-                    subcategory: trioNotificationsSubcategory,
-                    name: String(localized: "Add Glucose Source to Alarm"),
-                    value: trioSettings
-                        .addSourceInfoToGlucoseNotifications ? String(localized: "Enabled") : String(localized: "Disabled")
-                )
-                addSetting(
-                    category: notificationsCategory,
-                    subcategory: trioNotificationsSubcategory,
-                    name: String(localized: "Low Glucose Alarm Limit"),
-                    value: trioSettings
-                        .units == .mgdL ? String(describing: trioSettings.lowGlucose) :
-                        String(describing: trioSettings.lowGlucose.asMmolL),
-                    unit: trioSettings.units.rawValue
-                )
-                addSetting(
-                    category: notificationsCategory,
-                    subcategory: trioNotificationsSubcategory,
-                    name: String(localized: "High Glucose Alarm Limit"),
-                    value: trioSettings
-                        .units == .mgdL ? String(describing: trioSettings.highGlucose) :
-                        String(describing: trioSettings.highGlucose.asMmolL),
-                    unit: trioSettings.units.rawValue
                 )
 
                 // Live Activity subcategory

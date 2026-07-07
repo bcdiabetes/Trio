@@ -19,6 +19,12 @@ protocol FetchGlucoseManager: SourceInfoProvider {
     var cgmGlucosePluginId: String { get }
     var settingsManager: SettingsManager! { get }
     var shouldSyncToRemoteService: Bool { get }
+    var cgmDisplayState: CurrentValueSubject<CgmDisplayState?, Never> { get }
+    var cgmProgressHighlight: CurrentValueSubject<DeviceLifecycleProgress?, Never> { get }
+    /// Routes CGMManager-issued alerts (sensor failure, signal loss, expiry,
+    /// etc.) into the unified `TrioAlertManager` pipeline. Read by
+    /// `PluginSource.issueAlert` / `retractAlert`.
+    var trioAlertManager: TrioAlertManager! { get }
 }
 
 extension FetchGlucoseManager {
@@ -40,6 +46,7 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
     @Injected() var deviceDataManager: DeviceDataManager!
     @Injected() var pluginCGMManager: PluginManager!
     @Injected() var calibrationService: CalibrationService!
+    @Injected() var trioAlertManager: TrioAlertManager!
 
     private var lifetime = Lifetime()
     private let timer = DispatchTimer(timeInterval: 1.minutes.timeInterval)
@@ -148,7 +155,27 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
         }
     }
 
-    var glucoseSource: GlucoseSource?
+    let cgmDisplayState = CurrentValueSubject<CgmDisplayState?, Never>(nil)
+    let cgmProgressHighlight = CurrentValueSubject<DeviceLifecycleProgress?, Never>(nil)
+    private var cgmStatusSubscriptions = Set<AnyCancellable>()
+
+    var glucoseSource: GlucoseSource? {
+        didSet {
+            // Drop prior subscriptions so source swaps don't dupe emissions.
+            cgmStatusSubscriptions.removeAll()
+            cgmDisplayState.value = glucoseSource?.cgmDisplayState.value
+            cgmProgressHighlight.value = glucoseSource?.cgmProgressHighlight.value
+            guard let glucoseSource else { return }
+            glucoseSource.cgmDisplayState
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] state in self?.cgmDisplayState.value = state }
+                .store(in: &cgmStatusSubscriptions)
+            glucoseSource.cgmProgressHighlight
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] progress in self?.cgmProgressHighlight.value = progress }
+                .store(in: &cgmStatusSubscriptions)
+        }
+    }
 
     func removeCalibrations() {
         calibrationService.removeAllCalibrations()
@@ -238,37 +265,6 @@ final class BaseFetchGlucoseManager: FetchGlucoseManager, Injectable {
             return nil
         }
         return Manager.init(rawState: rawState)
-    }
-
-    func fetchGlucose(context: NSManagedObjectContext) async throws -> [NSManagedObjectID] {
-        // Compound predicate: time window + non-manual + valid date
-        let timePredicate = NSPredicate.predicateForOneDayAgoInMinutes
-        let manualPredicate = NSPredicate(format: "isManual == NO")
-        let datePredicate = NSPredicate(format: "date != nil")
-
-        let compoundPredicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-            timePredicate,
-            manualPredicate,
-            datePredicate
-        ])
-
-        let results = try await CoreDataStack.shared.fetchEntitiesAsync(
-            ofType: GlucoseStored.self,
-            onContext: context,
-            // Predicate must cover at least the full glucose horizon used by downstream algorithm consumers.
-            // If autosens / oref / smoothing logic ever starts looking back further (e.g. 36h),
-            // this fetch window must be expanded accordingly.
-            predicate: compoundPredicate,
-            key: "date",
-            ascending: true, // the first element is the oldest
-            fetchLimit: 350
-        )
-
-        guard let glucoseArray = results as? [GlucoseStored] else {
-            throw CoreDataError.fetchError(function: #function, file: #file)
-        }
-
-        return glucoseArray.map(\.objectID)
     }
 
     private func glucoseStoreAndHeartDecision(syncDate: Date, glucose: [BloodGlucose]) async throws {
@@ -394,6 +390,39 @@ extension BaseFetchGlucoseManager: SettingsObserver {
 }
 
 extension BaseFetchGlucoseManager {
+    func fetchGlucose(context: NSManagedObjectContext) async throws -> [NSManagedObjectID] {
+        // Compound predicate: time window + non-manual + valid date
+        let timePredicate = NSPredicate.predicateForOneDayAgoInMinutes
+        let manualPredicate = NSPredicate(format: "isManual == NO")
+        let datePredicate = NSPredicate(format: "date != nil")
+
+        let compoundPredicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            timePredicate,
+            manualPredicate,
+            datePredicate
+        ])
+
+        let results = try await CoreDataStack.shared.fetchEntitiesAsync(
+            ofType: GlucoseStored.self,
+            onContext: context,
+            // Predicate must cover at least the full glucose horizon used by downstream algorithm consumers.
+            // If autosens / oref / smoothing logic ever starts looking back further (e.g. 36h),
+            // this fetch window must be expanded accordingly.
+            // Fetch descending (newest first) so the limit always keeps the most recent 350 readings.
+            // Reversed before return so callers receive oldest-first (chronological) order.
+            predicate: compoundPredicate,
+            key: "date",
+            ascending: false,
+            fetchLimit: 350
+        )
+
+        guard let glucoseArray = results as? [GlucoseStored] else {
+            throw CoreDataError.fetchError(function: #function, file: #file)
+        }
+
+        return Array(glucoseArray.map(\.objectID).reversed())
+    }
+
     /// CoreData-friendly AAPS exponential smoothing + storage.
     /// - Important: Only stores `smoothedGlucose`. UI/alerts should still use `glucose`.
     ///
@@ -474,12 +503,17 @@ extension BaseFetchGlucoseManager {
             }
         }
 
-        // If insufficient valid readings: copy raw into smoothed (clamped) for all passed entries.
+        // Not enough recent contiguous readings to smooth (e.g. after CGM gap).
+        // IMPORTANT: Only apply fallback to the recent window, not all data.
+        // Otherwise a recent gap would overwrite historical smoothed values.
         guard validWindowCount >= minimumWindowSize else {
-            for object in data {
+            let recentWindow = data.suffix(validWindowCount)
+
+            for object in recentWindow {
                 let raw = Decimal(Int(object.glucose))
                 object.smoothedGlucose = max(raw, minimumSmoothedGlucose) as NSDecimalNumber
             }
+
             return
         }
 

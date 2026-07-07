@@ -96,7 +96,7 @@ extension UserInterfaceSettings {
                             }.padding(.top)
                         }.padding(.bottom)
                     }
-                ).listRowBackground(Color.chart)
+                ).settingsSearchTarget(label: String(localized: "Appearance"))
 
                 Section {
                     VStack {
@@ -154,7 +154,7 @@ extension UserInterfaceSettings {
                             ).buttonStyle(BorderlessButtonStyle())
                         }.padding(.top)
                     }.padding(.bottom)
-                }.listRowBackground(Color.chart)
+                }.settingsSearchTarget(label: String(localized: "Glucose Color Scheme"))
 
                 Section(
                     header: Text("Home View Settings"),
@@ -189,7 +189,7 @@ extension UserInterfaceSettings {
                             }.padding(.top)
                         }.padding(.vertical)
                     }
-                ).listRowBackground(Color.chart)
+                ).settingsSearchTarget(label: String(localized: "Show X-Axis Grid Lines"))
 
                 SettingInputSection(
                     decimalValue: $decimalPlaceholder,
@@ -286,7 +286,7 @@ extension UserInterfaceSettings {
 
                             HStack(alignment: .center) {
                                 Text(
-                                    "Set low and high glucose values for the main screen, watch app and live activity glucose graph."
+                                    "Set low and high glucose values for the main screen, watch app, live activity, and contact image colors."
                                 )
                                 .lineLimit(nil)
                                 .font(.footnote)
@@ -303,7 +303,10 @@ extension UserInterfaceSettings {
                                                         "Default values are based on internationally accepted Time in Range values of \(state.units == .mgdL ? "70" : 70.formattedAsMmolL)-\(state.units == .mgdL ? "180" : 180.formattedAsMmolL) \(state.units.rawValue)."
                                                     ).bold()
                                                     Text(
-                                                        "Adjust these values if you would like the statistics to reflect different values than the internationally accepted Time In Range values used as the default."
+                                                        "These thresholds drive the chart band colors, statistics in-range buckets, Live Activity colors, and Contact Image colors."
+                                                    )
+                                                    Text(
+                                                        "To configure when alarms fire (urgent low / low / high / forecasted low), open Glucose Alarms."
                                                     )
                                                     Text("Note: These values are not used to calculate insulin dosing.")
                                                 }
@@ -319,7 +322,7 @@ extension UserInterfaceSettings {
                                 ).buttonStyle(BorderlessButtonStyle())
                             }.padding(.top)
                         }.padding(.bottom)
-                    }.listRowBackground(Color.chart)
+                    }.settingsSearchTarget(label: String(localized: "Low Threshold"))
                 }
 
                 Section {
@@ -374,7 +377,7 @@ extension UserInterfaceSettings {
                             ).buttonStyle(BorderlessButtonStyle())
                         }.padding(.top)
                     }.padding(.bottom)
-                }.listRowBackground(Color.chart)
+                }.settingsSearchTarget(label: String(localized: "Forecast Display Type"))
 
                 Section {
                     VStack {
@@ -416,7 +419,7 @@ extension UserInterfaceSettings {
                             ).buttonStyle(BorderlessButtonStyle())
                         }.padding(.top)
                     }.padding(.bottom)
-                }.listRowBackground(Color.chart)
+                }.settingsSearchTarget(label: String(localized: "Bolus Display Threshold"))
 
                 Section(
                     header: Text("Trio Statistics"),
@@ -459,7 +462,7 @@ extension UserInterfaceSettings {
                             }.padding(.top)
                         }.padding(.bottom)
                     }
-                ).listRowBackground(Color.chart)
+                ).settingsSearchTarget(label: String(localized: "eA1c/GMI Display Unit"))
 
                 Section {
                     VStack(alignment: .leading) {
@@ -538,7 +541,7 @@ extension UserInterfaceSettings {
                             ).buttonStyle(BorderlessButtonStyle())
                         }.padding(.top)
                     }.padding(.bottom)
-                }.listRowBackground(Color.chart)
+                }.settingsSearchTarget(label: String(localized: "Time in Range Type"))
 
                 SettingInputSection(
                     decimalValue: $state.carbsRequiredThreshold,
@@ -561,6 +564,29 @@ extension UserInterfaceSettings {
                     ),
                     headerText: String(localized: "Carbs Required Badge")
                 )
+
+                SettingInputSection(
+                    decimalValue: $decimalPlaceholder,
+                    booleanValue: $state.requireAdjustmentsConfirmation,
+                    shouldDisplayHint: $shouldDisplayHint,
+                    selectedVerboseHint: Binding(
+                        get: { selectedVerboseHint },
+                        set: {
+                            selectedVerboseHint = $0.map { AnyView($0) }
+                            hintLabel = String(localized: "Require Adjustments Confirmation")
+                        }
+                    ),
+                    units: state.units,
+                    type: .boolean,
+                    label: String(localized: "Require Adjustments Confirmation"),
+                    miniHint: String(
+                        localized: "If enabled, a confirmation dialog will be shown when activating adjustment presets."
+                    ),
+                    verboseHint: Text(
+                        "Turning this on will show a confirmation dialog when you activate an Override or Temporary Target preset. This is for users who would like avoid accidentally activating a preset by mistake."
+                    ),
+                    headerText: String(localized: "Adjustments")
+                )
             }
             .listSectionSpacing(sectionSpacing)
             .sheet(isPresented: $shouldDisplayHint) {
@@ -577,6 +603,7 @@ extension UserInterfaceSettings {
             .onAppear(perform: configureView)
             .navigationBarTitle("User Interface")
             .navigationBarTitleDisplayMode(.automatic)
+            .settingsHighlightScroll()
         }
     }
 }

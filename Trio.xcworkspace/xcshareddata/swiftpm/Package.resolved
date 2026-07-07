@@ -1,5 +1,5 @@
 {
-  "originHash" : "598841ae6fe892058ca678f5672f34299df2d62843330367c207648003263ccd",
+  "originHash" : "af604046297daf839c0c212e73929960a33a0fecfdb97b64b9356d8a98b7bd60",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/garmin/connectiq-companion-app-sdk-ios",
       "state" : {
-        "revision" : "00594907c84884a9430c6a33825940c2769f261a",
-        "version" : "1.7.0"
+        "revision" : "f0d29ff691d700a132d86205ed9bb091e336c2f7",
+        "version" : "1.8.0"
       }
     },
     {
@@ -251,15 +251,6 @@
       "state" : {
         "revision" : "6190d0cefff3013e77ed567e6b074f324e5c5bf5",
         "version" : "6.3.1"
-      }
-    },
-    {
-      "identity" : "swiftmessages",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SwiftKickMobile/SwiftMessages",
-      "state" : {
-        "revision" : "62e12e138fc3eedf88c7553dd5d98712aa119f40",
-        "version" : "9.0.9"
       }
     },
     {

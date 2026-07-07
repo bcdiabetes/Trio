@@ -22,6 +22,7 @@ extension Home {
         @State var state = StateModel()
 
         @State var settingsPath = NavigationPath()
+        @State var settingsSearchHighlight = SettingsSearchHighlight()
         @State var isStatusPopupPresented = false
         @State var showCancelAlert = false
         @State var showCancelConfirmDialog = false
@@ -33,6 +34,7 @@ extension Home {
         @State var selectedTab: Int = 0
         @State var showPumpSelection: Bool = false
         @State var showCGMSelection: Bool = false
+        @State var showSnoozeSheet: Bool = false
         @State var notificationsDisabled = false
         @State var timeButtons: [TimePicker] = [
             TimePicker(active: false, hours: 4),
@@ -132,20 +134,24 @@ extension Home {
                 cgmAvailable: state.cgmAvailable,
                 currentGlucoseTarget: state.currentGlucoseTarget,
                 glucoseColorScheme: state.glucoseColorScheme,
-                glucose: state.latestTwoGlucoseValues
-            ).scaleEffect(0.9)
-                .onTapGesture {
-                    if !state.cgmAvailable {
-                        showCGMSelection.toggle()
-                    } else {
-                        state.shouldDisplayCGMSetupSheet.toggle()
-                    }
+                glucose: state.latestTwoGlucoseValues,
+                cgmProgress: state.cgmProgressHighlight,
+                cgmStatus: state.cgmDisplayState,
+                cgmSensorExpiresAt: state.cgmSensorExpiresAt,
+                cgmWarmupEndsAt: state.cgmWarmupEndsAt
+            )
+            .onTapGesture {
+                if !state.cgmAvailable {
+                    showCGMSelection.toggle()
+                } else {
+                    state.shouldDisplayCGMSetupSheet.toggle()
                 }
-                .onLongPressGesture {
-                    let impactHeavy = UIImpactFeedbackGenerator(style: .heavy)
-                    impactHeavy.impactOccurred()
-                    state.showModal(for: .snooze)
-                }
+            }
+            .onLongPressGesture {
+                let impactHeavy = UIImpactFeedbackGenerator(style: .heavy)
+                impactHeavy.impactOccurred()
+                showSnoozeSheet = true
+            }
         }
 
         var pumpView: some View {
@@ -153,6 +159,7 @@ extension Home {
                 reservoir: state.reservoir,
                 name: state.pumpName,
                 expiresAtDate: state.pumpExpiresAtDate,
+                activatedAtDate: state.pumpActivatedAtDate,
                 timerDate: state.timerDate,
                 pumpStatusHighlightMessage: state.pumpStatusHighlightMessage,
                 battery: state.batteryFromPersistence
@@ -772,27 +779,6 @@ extension Home {
             }.padding(.horizontal, 10).padding(.bottom, UIDevice.adjustPadding(min: nil, max: 10))
         }
 
-        @ViewBuilder func bolusProgressBar(_ progress: Decimal) -> some View {
-            GeometryReader { geo in
-                RoundedRectangle(cornerRadius: 15)
-                    .frame(height: 6)
-                    .foregroundColor(.clear)
-                    .background(
-                        LinearGradient(colors: [
-                            Color(red: 0.7215686275, green: 0.3411764706, blue: 1),
-                            Color(red: 0.6235294118, green: 0.4235294118, blue: 0.9803921569),
-                            Color(red: 0.4862745098, green: 0.5450980392, blue: 0.9529411765),
-                            Color(red: 0.3411764706, green: 0.6666666667, blue: 0.9254901961),
-                            Color(red: 0.262745098, green: 0.7333333333, blue: 0.9137254902)
-                        ], startPoint: .leading, endPoint: .trailing)
-                            .mask(alignment: .leading) {
-                                RoundedRectangle(cornerRadius: 15)
-                                    .frame(width: geo.size.width * CGFloat(progress))
-                            }
-                    )
-            }
-        }
-
         @ViewBuilder func bolusView(geo: GeometryProxy, _ progress: Decimal) -> some View {
             /// ensure that state.lastPumpBolus has a value, i.e. there is a last bolus done by the pump and not an external bolus
             /// - TRUE:  show the pump bolus
@@ -848,14 +834,14 @@ extension Home {
                         }
                     }.padding(.horizontal, 10)
                         .padding(.trailing, 8)
-
-                }.padding(.horizontal, 10).padding(.bottom, UIDevice.adjustPadding(min: nil, max: 10))
-                    .overlay(alignment: .bottom) {
-                        // Use a geo-based offset here to position progress bar independent of device size
-                        let offset = geo.size.height * 0.0725
-                        bolusProgressBar(progress).padding(.horizontal, 18)
-                            .offset(y: offset)
-                    }.clipShape(RoundedRectangle(cornerRadius: 15))
+                }
+                .padding(.horizontal, 10)
+                .padding(.bottom, UIDevice.adjustPadding(min: nil, max: 10))
+                .overlay(alignment: .bottom) {
+                    BolusProgressBar(progress: progress)
+                        .padding(.horizontal, 18)
+                        .padding(.bottom, 9)
+                }.clipShape(RoundedRectangle(cornerRadius: 15))
             }
         }
 
@@ -1003,7 +989,6 @@ extension Home {
             }
             .navigationTitle("Home")
             .navigationBarHidden(true)
-            .ignoresSafeArea(.keyboard)
             .blur(radius: state.isLoopStatusPresented ? 3 : 0)
             .sheet(isPresented: $state.isLoopStatusPresented) {
                 LoopStatusView(state: state)
@@ -1011,12 +996,15 @@ extension Home {
             .sheet(isPresented: $state.isLegendPresented) {
                 ChartLegendView(state: state)
             }
+            .sheet(isPresented: $showSnoozeSheet) {
+                SnoozeAlertsSheetView(resolver: resolver, isPresented: $showSnoozeSheet)
+            }
             // PUMP RELATED
             .confirmationDialog("Pump Model", isPresented: $showPumpSelection) {
                 Button("Medtronic") { state.addPump(.minimed) }
-                Button("Omnipod Eros") { state.addPump(.omnipod) }
-                Button("Omnipod DASH") { state.addPump(.omnipodBLE) }
+                Button("All Omnipod Types") { state.addPump(.omni) }
                 Button("Dana(RS/-i)") { state.addPump(.dana) }
+                Button("Medtrum Nano") { state.addPump(.medtrum) }
                 Button("Pump Simulator") { state.addPump(.simulator) }
             } message: { Text("Select Pump Model") }
             .sheet(isPresented: $state.shouldDisplayPumpSetupSheet) {
@@ -1117,6 +1105,7 @@ extension Home {
 
                     NavigationStack(path: self.$settingsPath) {
                         Settings.RootView(resolver: resolver) }
+                        .environment(settingsSearchHighlight)
                         .tabItem { Label(
                             "Settings",
                             systemImage: "gear"
