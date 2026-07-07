@@ -34,6 +34,7 @@ extension Home {
         @State var selectedTab: Int = 0
         @State var showPumpSelection: Bool = false
         @State var showCGMSelection: Bool = false
+        @State var showSnoozeSheet: Bool = false
         @State var notificationsDisabled = false
         @State var timeButtons: [TimePicker] = [
             TimePicker(active: false, hours: 4),
@@ -133,20 +134,24 @@ extension Home {
                 cgmAvailable: state.cgmAvailable,
                 currentGlucoseTarget: state.currentGlucoseTarget,
                 glucoseColorScheme: state.glucoseColorScheme,
-                glucose: state.latestTwoGlucoseValues
-            ).scaleEffect(0.9)
-                .onTapGesture {
-                    if !state.cgmAvailable {
-                        showCGMSelection.toggle()
-                    } else {
-                        state.shouldDisplayCGMSetupSheet.toggle()
-                    }
+                glucose: state.latestTwoGlucoseValues,
+                cgmProgress: state.cgmProgressHighlight,
+                cgmStatus: state.cgmDisplayState,
+                cgmSensorExpiresAt: state.cgmSensorExpiresAt,
+                cgmWarmupEndsAt: state.cgmWarmupEndsAt
+            )
+            .onTapGesture {
+                if !state.cgmAvailable {
+                    showCGMSelection.toggle()
+                } else {
+                    state.shouldDisplayCGMSetupSheet.toggle()
                 }
-                .onLongPressGesture {
-                    let impactHeavy = UIImpactFeedbackGenerator(style: .heavy)
-                    impactHeavy.impactOccurred()
-                    state.showModal(for: .snooze)
-                }
+            }
+            .onLongPressGesture {
+                let impactHeavy = UIImpactFeedbackGenerator(style: .heavy)
+                impactHeavy.impactOccurred()
+                showSnoozeSheet = true
+            }
         }
 
         var pumpView: some View {
@@ -990,6 +995,9 @@ extension Home {
             }
             .sheet(isPresented: $state.isLegendPresented) {
                 ChartLegendView(state: state)
+            }
+            .sheet(isPresented: $showSnoozeSheet) {
+                SnoozeAlertsSheetView(resolver: resolver, isPresented: $showSnoozeSheet)
             }
             // PUMP RELATED
             .confirmationDialog("Pump Model", isPresented: $showPumpSelection) {
