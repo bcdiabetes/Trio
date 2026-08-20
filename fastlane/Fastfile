@@ -150,10 +150,8 @@ platform :ios do
       api_key: api_key,
       skip_submission: false,
       ipa: "Trio.ipa",
-      distribute_external: true,
-      groups: [
-        "External"
-      ],
+      distribute_external: false,
+      groups: [],
       skip_waiting_for_build_processing: false,
       changelog: git_branch+" "+last_git_commit[:abbreviated_commit_hash],
     )
